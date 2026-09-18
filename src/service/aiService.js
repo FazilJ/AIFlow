@@ -700,20 +700,45 @@ ${userMessage}`,
         `AI tool round ${round}/${MAX_TOOL_ROUNDS}`
       );
 
-      const response =
-        await getAIClient().models.generateContent(
-          {
-            model: MODEL_NAME,
+let response;
 
-            contents:
-              currentContents,
+const maxRetries = 3;
 
-            config: {
-              tools,
-            },
-          }
-        );
+for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  try {
+    response = await getAIClient().models.generateContent({
+      model: MODEL_NAME,
 
+      contents: currentContents,
+
+      config: {
+        tools,
+      },
+    });
+
+    // Gemini request succeeded
+    break;
+
+  } catch (error) {
+    const status = error?.status || error?.code;
+
+    // Retry only temporary Gemini server errors
+    if ((status === 503 || status === 429) && attempt < maxRetries) {
+      const delay = Math.pow(2, attempt + 1) * 1000;
+
+      console.log(
+        `Gemini temporary error (${status}). Retrying in ${delay / 1000}s...`
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, delay));
+
+      continue;
+    }
+
+    // Not retryable or retries exhausted
+    throw error;
+  }
+}
       const functionCalls =
         response.functionCalls ||
         [];
