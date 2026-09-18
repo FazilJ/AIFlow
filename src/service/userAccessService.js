@@ -113,22 +113,28 @@ const hasBusinessAccess = async ({
   }
 
   // Support agent -> assigned business only
-  if (role === "support_agent") {
-    const user = await User.findById(userId)
-      .select("businesses role")
-      .lean();
 
-    if (!user || user.role !== "support_agent") {
-      return false;
-    }
+if (role === "support_agent") {
+  const user = await User.findById(userId)
+    .select("businesses role")
+    .lean();
 
-    return (
-      Array.isArray(user.businesses) &&
-      user.businesses.some(
-        (id) => id.toString() === businessId.toString()
-      )
-    );
+  if (!user || user.role !== "support_agent") {
+    return false;
   }
+
+  const assigned =
+    Array.isArray(user.businesses) &&
+    user.businesses.some(
+      (id) => id.toString() === businessId.toString()
+    );
+
+  if (!assigned) {
+    return false;
+  }
+
+  return true;
+}
 
   return false;
 };

@@ -72,9 +72,7 @@ const checkBusinessAccess = (
         });
       }
 
-      // -----------------------------
-      // Actual tenant access check
-      // -----------------------------
+
       await requireBusinessAccess({
         userId: req.user._id,
         role: req.user.role,

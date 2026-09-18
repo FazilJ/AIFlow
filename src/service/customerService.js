@@ -3,6 +3,11 @@ const mongoose = require("mongoose");
 const Customer = require("../models/Customer");
 const Business = require("../models/Business");
 
+const {
+  getUserBusinessIds,
+  requireBusinessAccess,
+} = require("./userAccessService");
+
 // ======================================================
 // Helper: Create service error
 // ======================================================
@@ -11,10 +16,6 @@ const createServiceError = (message, statusCode = 400) => {
   error.statusCode = statusCode;
   return error;
 };
-
-const {
-  getUserBusinessIds,
-} = require("./userAccessService");
 
 // ======================================================
 // Helper: Validate ObjectId
@@ -38,9 +39,6 @@ const createCustomer = async (customerData, userId, role) => {
     source,
   } = customerData || {};
 
-  // -----------------------------
-  // Required fields
-  // -----------------------------
   if (!business) {
     throw createServiceError("Business ID is required", 400);
   }
@@ -51,74 +49,46 @@ const createCustomer = async (customerData, userId, role) => {
 
   validateObjectId(business, "business ID");
 
-  // -----------------------------
-  // Only admin / business owner
-  // -----------------------------
-  if (
-    role !== "admin" &&
-    role !== "business_owner"
-  ) {
+  if (role !== "admin" && role !== "business_owner") {
     throw createServiceError(
       "You do not have permission to create customers",
       403
     );
   }
 
-  // -----------------------------
-  // Check business access
-  // -----------------------------
-  let businessExists;
+  // Central business access check
+  await requireBusinessAccess({
+    userId,
+    role,
+    businessId,
+  });
 
-  if (role === "admin") {
-    businessExists = await Business.findById(business)
-      .select("_id name email owner isActive")
-      .lean();
-  } else {
-    businessExists = await Business.findOne({
-      _id: business,
-      owner: userId,
-    })
-      .select("_id name email owner isActive")
-      .lean();
-  }
+  // Active business check
+  const businessExists = await Business.findOne({
+    _id: business,
+    isActive: { $ne: false },
+  })
+    .select("_id name email owner isActive")
+    .lean();
 
   if (!businessExists) {
     throw createServiceError(
-      "Business not found or access denied",
-      404
-    );
-  }
-
-  // -----------------------------
-  // Inactive business protection
-  // -----------------------------
-  if (businessExists.isActive === false) {
-    throw createServiceError(
-      "This business is inactive",
+      "Business not found or inactive",
       403
     );
   }
 
-  // -----------------------------
-  // Normalize email
-  // -----------------------------
   const normalizedEmail =
     typeof email === "string" && email.trim()
       ? email.trim().toLowerCase()
       : undefined;
 
-  // -----------------------------
-  // Normalize WhatsApp number
-  // -----------------------------
   const normalizedWhatsAppNumber =
     typeof whatsappNumber === "string" &&
     whatsappNumber.trim()
       ? whatsappNumber.trim()
       : undefined;
 
-  // -----------------------------
-  // Create customer
-  // -----------------------------
   const customer = await Customer.create({
     business,
     name: name.trim(),
@@ -145,9 +115,6 @@ const identifyCustomer = async ({
   name,
   email,
 }) => {
-  // -----------------------------
-  // Validate inputs
-  // -----------------------------
   if (!businessId) {
     throw createServiceError(
       "Business ID is required",
@@ -171,9 +138,6 @@ const identifyCustomer = async ({
 
   validateObjectId(businessId, "business ID");
 
-  // -----------------------------
-  // Check active business
-  // -----------------------------
   const businessExists = await Business.findOne({
     _id: businessId,
     isActive: { $ne: false },
@@ -191,17 +155,11 @@ const identifyCustomer = async ({
   const normalizedEmail =
     email.trim().toLowerCase();
 
-  // -----------------------------
-  // Find existing customer
-  // -----------------------------
   let customer = await Customer.findOne({
     business: businessId,
     email: normalizedEmail,
   });
 
-  // -----------------------------
-  // Create customer
-  // -----------------------------
   if (!customer) {
     customer = await Customer.create({
       business: businessId,
@@ -210,9 +168,6 @@ const identifyCustomer = async ({
       source: "website",
     });
   } else {
-    // -----------------------------
-    // Update customer name
-    // -----------------------------
     if (name.trim() && customer.name !== name.trim()) {
       customer.name = name.trim();
       await customer.save();
@@ -230,9 +185,6 @@ const identifyWhatsAppCustomer = async ({
   name,
   whatsappNumber,
 }) => {
-  // -----------------------------
-  // Validate inputs
-  // -----------------------------
   if (!businessId) {
     throw createServiceError(
       "Business ID is required",
@@ -249,9 +201,6 @@ const identifyWhatsAppCustomer = async ({
 
   validateObjectId(businessId, "business ID");
 
-  // -----------------------------
-  // Check active business
-  // -----------------------------
   const businessExists = await Business.findOne({
     _id: businessId,
     isActive: { $ne: false },
@@ -269,17 +218,11 @@ const identifyWhatsAppCustomer = async ({
   const normalizedWhatsAppNumber =
     whatsappNumber.trim();
 
-  // -----------------------------
-  // Find existing customer
-  // -----------------------------
   let customer = await Customer.findOne({
     business: businessId,
     whatsappNumber: normalizedWhatsAppNumber,
   });
 
-  // -----------------------------
-  // Create customer
-  // -----------------------------
   if (!customer) {
     customer = await Customer.create({
       business: businessId,
@@ -291,9 +234,6 @@ const identifyWhatsAppCustomer = async ({
       source: "whatsapp",
     });
   } else if (name && name.trim()) {
-    // -----------------------------
-    // Update customer name
-    // -----------------------------
     const trimmedName = name.trim();
 
     if (customer.name !== trimmedName) {
@@ -308,12 +248,72 @@ const identifyWhatsAppCustomer = async ({
 // ======================================================
 // Get Customers
 // ======================================================
-const getCustomers = async (userId, role) => {
+const getCustomers = async (
+  userId,
+  role,
+  businessId
+) => {
+  // ====================================================
+  // If businessId is provided
+  // ====================================================
+  if (businessId) {
+    validateObjectId(businessId, "business ID");
+
+    // Check whether logged-in user can access
+    // this exact business
+    await requireBusinessAccess({
+      userId,
+      role,
+      businessId,
+    });
+
+    // Make sure business is active
+    const business = await Business.findOne({
+      _id: businessId,
+      isActive: { $ne: false },
+    })
+      .select("_id")
+      .lean();
+
+    if (!business) {
+      throw createServiceError(
+        "Business not found or inactive",
+        403
+      );
+    }
+
+    const customers = await Customer.find({
+      business: businessId,
+    })
+      .populate("business", "name email")
+      .sort({ createdAt: -1 });
+
+    return customers;
+  }
+
+  // ====================================================
+  // No businessId provided
+  // ====================================================
+
   let query = {};
 
-  // Admin
+  // Admin can view active businesses
   if (role === "admin") {
-    query = {};
+    const businesses = await Business.find({
+      isActive: { $ne: false },
+    })
+      .select("_id")
+      .lean();
+
+    const businessIds = businesses.map(
+      (business) => business._id
+    );
+
+    query = {
+      business: {
+        $in: businessIds,
+      },
+    };
   }
 
   // Business Owner
@@ -352,8 +352,10 @@ const getCustomers = async (userId, role) => {
       return [];
     }
 
-    query.business = {
-      $in: businessIds,
+    query = {
+      business: {
+        $in: businessIds,
+      },
     };
   }
 

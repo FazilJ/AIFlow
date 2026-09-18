@@ -8,22 +8,6 @@ const User = require("../models/User");
 const protect = async (req, res, next) => {
   try {
     // ==================================================
-    // CHECK JWT SECRET
-    // ==================================================
-
-    if (!process.env.JWT_SECRET) {
-      console.error(
-        "JWT_SECRET is missing from .env"
-      );
-
-      return res.status(500).json({
-        success: false,
-        message:
-          "Server authentication configuration error",
-      });
-    }
-
-    // ==================================================
     // GET AUTHORIZATION HEADER
     // ==================================================
 
@@ -57,6 +41,22 @@ const protect = async (req, res, next) => {
     }
 
     // ==================================================
+    // CHECK JWT SECRET
+    // ==================================================
+
+    if (!process.env.JWT_SECRET) {
+      console.error(
+        "JWT_SECRET is missing from .env"
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Server authentication configuration error",
+      });
+    }
+
+    // ==================================================
     // VERIFY TOKEN
     // ==================================================
 
@@ -86,31 +86,28 @@ const protect = async (req, res, next) => {
     // ==================================================
     // CHECK USER IN DATABASE
     // ==================================================
+const user = await User.findById(userId)
+  .select("-password")
+  .lean();
 
-    const user =
-      await User.findById(userId)
-        .select("-password")
-        .lean();
+if (!user) {
+  return res.status(401).json({
+    success: false,
+    message: "User account no longer exists.",
+  });
+}
 
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message:
-          "User account no longer exists.",
-      });
-    }
+if (user.isActive === false) {
+  return res.status(403).json({
+    success: false,
+    message: "Your account has been deactivated. Please contact an administrator.",
+  });
+}
 
-    // ==================================================
-    // ATTACH USER TO REQUEST
-    // ==================================================
+req.user = user;
+req.auth = decoded;
 
-    req.user = user;
-
-
-    // Keep decoded token available when needed
-    req.auth = decoded;
-
-    next();
+next();
   } catch (error) {
     // ==================================================
     // JWT ERRORS

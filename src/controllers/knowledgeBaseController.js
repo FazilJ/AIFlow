@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const KnowledgeBase = require("../models/KnowledgeBase");
+const KnowledgeChunk = require("../models/KnowledgeChunk");
 
 const {
   createKnowledgeChunks,
@@ -8,10 +9,12 @@ const {
 
 const {
   requireBusinessAccess,
+  hasBusinessAccess,
 } = require("../service/userAccessService");
 
+
 // ======================================================
-// Create Knowledge Base
+// CREATE KNOWLEDGE BASE
 // ======================================================
 const createKnowledgeBase = async (req, res, next) => {
   try {
@@ -22,9 +25,6 @@ const createKnowledgeBase = async (req, res, next) => {
       source,
     } = req.body;
 
-    // -----------------------------
-    // Required fields
-    // -----------------------------
     if (!businessId || !title || !content) {
       return res.status(400).json({
         success: false,
@@ -33,9 +33,6 @@ const createKnowledgeBase = async (req, res, next) => {
       });
     }
 
-    // -----------------------------
-    // Validate business ID
-    // -----------------------------
     if (
       !mongoose.Types.ObjectId.isValid(
         businessId
@@ -47,9 +44,6 @@ const createKnowledgeBase = async (req, res, next) => {
       });
     }
 
-    // -----------------------------
-    // Validate title/content
-    // -----------------------------
     if (!title.trim()) {
       return res.status(400).json({
         success: false,
@@ -64,18 +58,12 @@ const createKnowledgeBase = async (req, res, next) => {
       });
     }
 
-    // -----------------------------
-    // Tenant access check
-    // -----------------------------
     await requireBusinessAccess({
       userId: req.user._id,
       role: req.user.role,
       businessId,
     });
 
-    // -----------------------------
-    // Create knowledge base
-    // -----------------------------
     const knowledgeBase =
       await KnowledgeBase.create({
         business: businessId,
@@ -88,9 +76,6 @@ const createKnowledgeBase = async (req, res, next) => {
             : "manual",
       });
 
-    // -----------------------------
-    // Create chunks
-    // -----------------------------
     const chunks =
       await createKnowledgeChunks(
         knowledgeBase._id
@@ -110,6 +95,131 @@ const createKnowledgeBase = async (req, res, next) => {
   }
 };
 
+
+// ======================================================
+// GET KNOWLEDGE BASE DOCUMENTS
+// ======================================================
+const getKnowledgeBases = async (req, res, next) => {
+  try {
+    const { businessId } = req.query;
+
+    // Admin can optionally filter by business
+    if (req.user.role === "admin") {
+      const filter = {};
+
+      if (businessId) {
+        if (
+          !mongoose.Types.ObjectId.isValid(
+            businessId
+          )
+        ) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid Business ID",
+          });
+        }
+
+        filter.business = businessId;
+      }
+
+      const knowledgeBases =
+        await KnowledgeBase.find(filter)
+          .populate("business", "name")
+          .sort({ createdAt: -1 })
+          .lean();
+
+      const data =
+        await Promise.all(
+          knowledgeBases.map(async (item) => {
+            const chunksCount =
+              await KnowledgeChunk.countDocuments({
+                knowledgeBase: item._id,
+              });
+
+            return {
+              ...item,
+              chunksCount,
+            };
+          })
+        );
+
+      return res.status(200).json({
+        success: true,
+        count: data.length,
+        data,
+      });
+    }
+
+    // Non-admin users need business ID
+    if (!businessId) {
+      return res.status(400).json({
+        success: false,
+        message: "Business ID is required",
+      });
+    }
+
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        businessId
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Business ID",
+      });
+    }
+
+    // Tenant access check
+    const hasAccess =
+      await hasBusinessAccess({
+        userId: req.user._id,
+        role: req.user.role,
+        businessId,
+      });
+
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "You do not have access to this business",
+      });
+    }
+
+    const knowledgeBases =
+      await KnowledgeBase.find({
+        business: businessId,
+      })
+        .populate("business", "name")
+        .sort({ createdAt: -1 })
+        .lean();
+
+    const data =
+      await Promise.all(
+        knowledgeBases.map(async (item) => {
+          const chunksCount =
+            await KnowledgeChunk.countDocuments({
+              knowledgeBase: item._id,
+            });
+
+          return {
+            ...item,
+            chunksCount,
+          };
+        })
+      );
+
+    return res.status(200).json({
+      success: true,
+      count: data.length,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 module.exports = {
   createKnowledgeBase,
+  getKnowledgeBases,
 };

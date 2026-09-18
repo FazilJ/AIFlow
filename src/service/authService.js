@@ -4,13 +4,13 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
 const registerUser = async (userData) => {
-  const {
-    name,
-    email,
-    password,
-    role = "business_owner",
-  } = userData;
+const {
+  name,
+  email,
+  password,
+} = userData;
 
+const role = "business_owner";
   // ==============================================
   // Basic validation
   // ==============================================
@@ -35,17 +35,6 @@ const registerUser = async (userData) => {
   // ==============================================
   // Validate role
   // ==============================================
-  const allowedRoles = [
-    "admin",
-    "business_owner",
-    "support_agent",
-  ];
-
-  if (!allowedRoles.includes(role)) {
-    const error = new Error("Invalid user role");
-    error.statusCode = 400;
-    throw error;
-  }
 
   const normalizedEmail =
     email.trim().toLowerCase();
@@ -87,6 +76,53 @@ const registerUser = async (userData) => {
   return user;
 };
 
+const createAdminUser = async (userData) => {
+  const { name, email, password } = userData;
+
+  if (!name || !name.trim()) {
+    const error = new Error("Name is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!email || !email.trim()) {
+    const error = new Error("Email is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!password) {
+    const error = new Error("Password is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const existingUser = await User.findOne({
+    email: normalizedEmail,
+  });
+
+  if (existingUser) {
+    const error = new Error("Email already registered");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 12);
+
+  const user = await User.create({
+    name: name.trim(),
+    email: normalizedEmail,
+    password: hashedPassword,
+    role: "admin",
+    businesses: [],
+    isActive: true,
+  });
+
+  return user;
+};
+
 const loginUser = async (
   email,
   password
@@ -107,6 +143,15 @@ const loginUser = async (
     error.statusCode = 401;
     throw error;
   }
+
+  if (!user.isActive) {
+  const error = new Error(
+    "Your account has been deactivated. Please contact an administrator."
+  );
+
+  error.statusCode = 403;
+  throw error;
+}
 
   const passwordMatch =
     await bcrypt.compare(
@@ -148,4 +193,5 @@ const loginUser = async (
 module.exports = {
   registerUser,
   loginUser,
+  createAdminUser,
 };

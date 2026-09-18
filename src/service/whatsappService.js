@@ -101,6 +101,68 @@ const sendWhatsAppTextMessage = async ({
   }
 };
 
+// ==================================================
+// CHECK WHATSAPP CONNECTION
+// ==================================================
+
+const checkWhatsAppConnection = async ({
+  phoneNumberId,
+  accessToken,
+}) => {
+  try {
+    if (!phoneNumberId) {
+      throw new Error("WhatsApp Phone Number ID is required");
+    }
+
+    if (!accessToken) {
+      throw new Error("WhatsApp access token is required");
+    }
+
+    const response = await fetch(
+      `https://graph.facebook.com/v25.0/${phoneNumberId}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error(
+        "WhatsApp Connection Error:",
+        JSON.stringify(data, null, 2)
+      );
+
+      throw new Error(
+        data?.error?.message ||
+          data?.error?.error_user_msg ||
+          "WhatsApp connection failed"
+      );
+    }
+
+    console.log(
+      "WhatsApp connection verified ✅"
+    );
+
+    return {
+      success: true,
+      data,
+    };
+  } catch (error) {
+    console.error(
+      "WhatsApp Connection Check Error:",
+      error.message
+    );
+
+    throw error;
+  }
+};
+
+
 module.exports = {
   sendWhatsAppTextMessage,
+  checkWhatsAppConnection,
 };

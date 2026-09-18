@@ -1,8 +1,20 @@
 const { GoogleGenAI } = require("@google/genai");
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
+let ai;
+
+const getAIClient = () => {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY is missing from .env");
+  }
+
+  if (!ai) {
+    ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+    });
+  }
+
+  return ai;
+};
 
 const EMBEDDING_MODEL = "gemini-embedding-001";
 
@@ -12,7 +24,7 @@ const generateEmbedding = async (text) => {
       throw new Error("Text is required for embedding");
     }
 
-    const response = await ai.models.embedContent({
+    const response = await getAIClient().models.embedContent({
       model: EMBEDDING_MODEL,
       contents: text.trim(),
       config: {

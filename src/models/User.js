@@ -54,6 +54,32 @@ const userSchema = new mongoose.Schema(
         ref: "Business",
       },
     ],
+
+notifications: {
+  email: {
+    type: Boolean,
+    default: true,
+  },
+  handoff: {
+    type: Boolean,
+    default: true,
+  },
+  ticket: {
+    type: Boolean,
+    default: true,
+  },
+  aiErrors: {
+    type: Boolean,
+    default: true,
+  },
+},
+
+isActive: {
+  type: Boolean,
+  default: true,
+  index: true,
+},
+
   },
   {
     timestamps: true,

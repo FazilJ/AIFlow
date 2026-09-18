@@ -15,8 +15,7 @@ const createCustomer = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message:
-        "Customer created successfully",
+      message: "Customer created successfully",
       data: customer,
     });
   } catch (error) {
@@ -28,16 +27,13 @@ const createCustomer = async (req, res, next) => {
 // GET CUSTOMERS
 // ======================================================
 
-const getCustomers = async (
-  req,
-  res,
-  next
-) => {
+const getCustomers = async (req, res, next) => {
   try {
     const customers =
       await customerService.getCustomers(
         req.user._id,
-        req.user.role
+        req.user.role,
+        req.query.businessId
       );
 
     res.status(200).json({
@@ -54,11 +50,7 @@ const getCustomers = async (
 // PUBLIC WIDGET CUSTOMER IDENTIFICATION
 // ======================================================
 
-const identifyCustomer = async (
-  req,
-  res,
-  next
-) => {
+const identifyCustomer = async (req, res, next) => {
   try {
     const {
       businessId,
@@ -66,11 +58,7 @@ const identifyCustomer = async (
       email,
     } = req.body;
 
-    if (
-      !businessId ||
-      !name ||
-      !email
-    ) {
+    if (!businessId || !name || !email) {
       return res.status(400).json({
         success: false,
         message:

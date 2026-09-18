@@ -7,6 +7,7 @@ const conversationService = require("../service/conversationService");
 
 const {
   sendWhatsAppTextMessage,
+  checkWhatsAppConnection
 } = require("../service/whatsappService");
 
 const resolveWhatsAppBusinessId = async () => {
@@ -429,10 +430,165 @@ const handleWhatsAppWebhook = async (
 };
 
 // ======================================================
-// EXPORTS
+// WHATSAPP CONNECTION STATUS
 // ======================================================
+
+const getWhatsAppStatus = async (req, res) => {
+  try {
+    // ==================================================
+    // ENV CONFIGURATION
+    // ==================================================
+
+    const businessId = await resolveWhatsAppBusinessId();
+
+    const accessToken =
+      process.env.WHATSAPP_ACCESS_TOKEN;
+
+    const phoneNumberId =
+      process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+    const verifyToken =
+      process.env.WHATSAPP_VERIFY_TOKEN;
+
+    // ==================================================
+    // BASIC CONFIGURATION CHECK
+    // ==================================================
+
+    const configured =
+      Boolean(
+        businessId &&
+        accessToken &&
+        phoneNumberId &&
+        verifyToken
+      );
+
+    // ==================================================
+    // MISSING CONFIGURATION
+    // ==================================================
+
+    if (!configured) {
+      return res.status(200).json({
+        success: true,
+
+        data: {
+          configured: false,
+          connected: false,
+
+          businessId: businessId || null,
+
+          phoneNumberId: phoneNumberId
+            ? phoneNumberId
+            : null,
+
+          verifyTokenConfigured:
+            Boolean(verifyToken),
+
+          accessTokenConfigured:
+            Boolean(accessToken),
+
+          status: "disconnected",
+
+          message:
+            "WhatsApp configuration is incomplete",
+        },
+      });
+    }
+
+    // ==================================================
+    // META API CONNECTION TEST
+    // ==================================================
+
+    try {
+      const result =
+        await checkWhatsAppConnection({
+          phoneNumberId,
+          accessToken,
+        });
+
+      // ==================================================
+      // CONNECTED
+      // ==================================================
+
+      return res.status(200).json({
+        success: true,
+
+        data: {
+          configured: true,
+          connected: true,
+
+          businessId,
+
+          phoneNumberId,
+
+          verifyTokenConfigured: true,
+          accessTokenConfigured: true,
+
+          status: "connected",
+
+          phoneNumber:
+            result?.data?.display_phone_number ||
+            null,
+
+          verifiedName:
+            result?.data?.verified_name ||
+            null,
+
+          message:
+            "WhatsApp Cloud API connection is working",
+        },
+      });
+    } catch (error) {
+      // ==================================================
+      // META CONNECTION FAILED
+      // ==================================================
+
+      return res.status(200).json({
+        success: true,
+
+        data: {
+          configured: true,
+          connected: false,
+
+          businessId,
+
+          phoneNumberId,
+
+          verifyTokenConfigured: true,
+          accessTokenConfigured: true,
+
+          status: "error",
+
+          message:
+            error.message ||
+            "WhatsApp Cloud API connection failed",
+        },
+      });
+    }
+  } catch (error) {
+    // ==================================================
+    // CONTROLLER ERROR
+    // ==================================================
+
+    console.error(
+      "WhatsApp Status Error:",
+      error.message
+    );
+
+    return res.status(
+      error.statusCode || 500
+    ).json({
+      success: false,
+
+      message:
+        error.message ||
+        "Failed to check WhatsApp status",
+    });
+  }
+};
+
 
 module.exports = {
   verifyWhatsAppWebhook,
   handleWhatsAppWebhook,
+  getWhatsAppStatus
 };

@@ -38,7 +38,27 @@ const login = async (req, res, next) => {
   }
 };
 
+const createAdmin = async (req, res, next) => {
+  try {
+    const user = await authService.createAdminUser(req.body);
+
+    res.status(201).json({
+      success: true,
+      message: "Admin created successfully",
+      data: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
+  createAdmin
 };  

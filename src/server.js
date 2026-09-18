@@ -26,7 +26,16 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const mongoSanitize = require("express-mongo-sanitize");
 const userRoutes = require("./routes/userRoutes");
-
+const ticketRoutes = require("./routes/ticketRoutes");
+const appointmentRoutes = require("./routes/appointmentRoutes");
+const ragTestRoutes = require("./routes/ragTestRoutes");
+const analyticsRoutes = require("./routes/analyticsRoutes");
+const healthRoutes = require("./routes/healthRoutes");
+const aiLogRoutes = require("./routes/aiLogRoutes");
+const teamRoutes = require("./routes/teamRoutes");
+const integrationRoutes =
+  require("./routes/integrationRoutes");
+const settingsRoutes = require("./routes/settingsRoutes");
 
 require("./queues/aiLogWorker");
 require("./models/User");
@@ -273,6 +282,8 @@ app.use(
 
 app.use(sanitizeRequest);
 
+app.use("/api/ai-logs", aiLogRoutes);
+
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -317,11 +328,29 @@ app.use(
   whatsappRoutes
 );
 
+app.use("/api/team", teamRoutes);
+
+app.use("/api/health", healthRoutes);
+
+app.use("/api/analytics", analyticsRoutes);
+
+app.use("/api/ai/rag-test", ragTestRoutes);
+
+app.use("/api/tickets", ticketRoutes);
+app.use("/api/settings", settingsRoutes);
+
 app.get("/", (req, res) => {
   res.send(
     "AIFlow API is running 🚀"
   );
 });
+
+app.use(
+  "/api/integrations",
+  integrationRoutes
+);
+
+app.use("/api/appointments", appointmentRoutes);
 
 app.use(
   "/api/auth",

@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 
 const {
   createKnowledgeBase,
+  getKnowledgeBases,
 } = require("../controllers/knowledgeBaseController");
 
 const {
@@ -32,6 +33,20 @@ router.post(
     "business_owner"
   ),
   createKnowledgeBase
+);
+
+// ======================================================
+// GET KNOWLEDGE BASE DOCUMENTS
+// ======================================================
+router.get(
+  "/",
+  protect,
+  authorize(
+    "admin",
+    "business_owner",
+    "support_agent"
+  ),
+  getKnowledgeBases
 );
 
 // ======================================================

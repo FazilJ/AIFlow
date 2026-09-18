@@ -64,18 +64,21 @@ const Message = require("../models/Message");
 // GEMINI
 // ======================================================
 
-const apiKey =
-  process.env.GEMINI_API_KEY;
+let ai;
 
-if (!apiKey) {
-  throw new Error(
-    "GEMINI_API_KEY is missing from .env"
-  );
-}
+const getAIClient = () => {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY is missing from .env");
+  }
 
-const ai = new GoogleGenAI({
-  apiKey,
-});
+  if (!ai) {
+    ai = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+    });
+  }
+
+  return ai;
+};
 
 // ======================================================
 // CONSTANTS
@@ -698,7 +701,7 @@ ${userMessage}`,
       );
 
       const response =
-        await ai.models.generateContent(
+        await getAIClient().models.generateContent(
           {
             model: MODEL_NAME,
 
@@ -1114,7 +1117,7 @@ ${userMessage}`,
     // ==================================================
 
     const response =
-      await ai.models.generateContentStream(
+      await getAIClient().models.generateContentStream(
         {
           model: MODEL_NAME,
 
